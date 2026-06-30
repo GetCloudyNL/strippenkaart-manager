@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: strippen
+      POSTGRES_PASSWORD: strippen
+      POSTGRES_DB: strippenkaart
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strippen -d strippenkaart"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Productie: de Next.js-app. Voor lokale ontwikkeling draai je `npm run dev`
+  # en alleen `docker compose up db redis`.
+  app:
+    build: .
+    restart: unless-stopped
+    command: sh -c "npx prisma migrate deploy && npm run start"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://strippen:strippen@db:5432/strippenkaart?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["prod"]
+
+  # Productie: de achtergrond-worker (BullMQ: HostBill-polling, mail, cron).
+  worker:
+    build: .
+    restart: unless-stopped
+    command: npm run worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://strippen:strippen@db:5432/strippenkaart?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["prod"]
+
+volumes:
+  db_data:
+  redis_data:

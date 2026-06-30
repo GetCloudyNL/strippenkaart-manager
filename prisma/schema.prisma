@@ -1,0 +1,233 @@
+// Strippenkaart Manager – datamodel
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  TECHNICIAN
+  READONLY
+  CUSTOMER
+}
+
+enum BillingType {
+  STRIPPENKAART
+  HOURLY
+  RETAINER
+  FIXED_PRICE
+}
+
+enum RoundingDirection {
+  UP
+  NEAREST
+  DOWN
+}
+
+enum CardStatus {
+  ACTIVE
+  DEPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum EmailType {
+  WORK_COMPLETED
+  MONTHLY_SUMMARY
+  LOW_BALANCE
+  EXPIRY_REMINDER
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(TECHNICIAN)
+  active       Boolean  @default(true)
+
+  // Voor portal-logins (role = CUSTOMER)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  timeEntries TimeEntry[]
+  auditLogs   AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model Customer {
+  id                 String  @id @default(cuid())
+  hostbillClientId   Int?    @unique
+  name               String
+  company            String?
+  email              String
+  notifyOnCompletion Boolean @default(false)
+
+  projects Project[]
+  cards    Strippenkaart[]
+  users    User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name        String
+  billingType BillingType   @default(HOURLY)
+  hourlyRate  Decimal?      @db.Decimal(10, 2)
+  status      ProjectStatus @default(ACTIVE)
+
+  timeEntries TimeEntry[]
+  cards       Strippenkaart[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+// Configureerbaar kaarttype/product (admin): 4/8/12 uur + afrondingsregels
+model CardType {
+  id                   String            @id @default(cuid())
+  name                 String
+  hostbillProductId    Int?              @unique
+  totalMinutes         Int
+  price                Decimal           @db.Decimal(10, 2)
+  roundingIncrementMin Int               @default(15)
+  roundingDirection    RoundingDirection @default(UP)
+  minimumPerEntryMin   Int               @default(0)
+  validityMonths       Int?
+  termsText            String?
+  active               Boolean           @default(true)
+
+  cards Strippenkaart[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Concrete strippenkaart van een klant. Voorwaarden worden als snapshot
+// gekopieerd zodat latere wijzigingen aan het CardType niets veranderen.
+model Strippenkaart {
+  id              String @id @default(cuid())
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  cardTypeId      String
+  cardType        CardType @relation(fields: [cardTypeId], references: [id])
+  hostbillOrderId Int?     @unique
+
+  totalMinutes     Int
+  remainingMinutes Int
+
+  // Snapshot van afrondingsregels
+  roundingIncrementMin Int
+  roundingDirection    RoundingDirection
+  minimumPerEntryMin   Int
+
+  purchasedAt DateTime   @default(now())
+  expiresAt   DateTime?
+  status      CardStatus @default(ACTIVE)
+
+  timeEntries TimeEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model TimeEntry {
+  id              String         @id @default(cuid())
+  projectId       String
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  strippenkaartId String?
+  strippenkaart   Strippenkaart? @relation(fields: [strippenkaartId], references: [id], onDelete: SetNull)
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+
+  date        DateTime
+  description String
+  rawMinutes  Int
+  // Voor strippenkaart-projecten: afgeschreven minuten na afronding.
+  // Voor overige projecten gelijk aan rawMinutes.
+  chargedMinutes Int
+  ticketRef      String?
+  billed         Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([strippenkaartId])
+  @@index([userId])
+  @@index([date])
+}
+
+model EmailLog {
+  id              String      @id @default(cuid())
+  type            EmailType
+  customerId      String?
+  strippenkaartId String?
+  to              String
+  subject         String
+  status          EmailStatus @default(PENDING)
+  error           String?
+  sentAt          DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([status])
+}
+
+model AuditLog {
+  id       String  @id @default(cuid())
+  userId   String?
+  user     User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action   String
+  entity   String
+  entityId String?
+  meta     Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+// Cursor voor het pollen van HostBill-orders
+model HostbillSyncState {
+  id           String    @id @default(cuid())
+  key          String    @unique
+  lastOrderId  Int?
+  lastPolledAt DateTime?
+
+  updatedAt DateTime @updatedAt
+}

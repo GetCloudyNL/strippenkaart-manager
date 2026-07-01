@@ -8,7 +8,8 @@ const NAV = [
   { href: "/projects", label: "Projecten" },
   { href: "/time", label: "Tijdregistratie" },
   { href: "/cards", label: "Strippenkaarten" },
-  { href: "/admin/card-types", label: "Kaarttypes" },
+  { href: "/admin/card-types", label: "Kaarttypes", adminOnly: true },
+  { href: "/admin/settings", label: "Instellingen", adminOnly: true },
 ];
 
 export default async function StaffLayout({
@@ -26,7 +27,9 @@ export default async function StaffLayout({
           <p className="text-xs text-muted">{session.user.name}</p>
         </div>
         <nav className="flex-1 space-y-1 p-3">
-          {NAV.map((item) => (
+          {NAV.filter(
+            (item) => !item.adminOnly || session.user.role === "ADMIN",
+          ).map((item) => (
             <Link
               key={item.href}
               href={item.href}

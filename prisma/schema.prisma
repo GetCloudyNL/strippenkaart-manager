@@ -17,6 +17,13 @@ enum Role {
   CUSTOMER
 }
 
+// Onderscheid tussen bestaande klanten en niet-klanten (bijv. prospects of
+// eenmalige opdrachten). Bepaalt welk standaard uurtarief geldt.
+enum CustomerType {
+  CUSTOMER
+  NON_CUSTOMER
+}
+
 enum BillingType {
   STRIPPENKAART
   HOURLY
@@ -77,12 +84,13 @@ model User {
 }
 
 model Customer {
-  id                 String  @id @default(cuid())
-  hostbillClientId   Int?    @unique
+  id                 String       @id @default(cuid())
+  hostbillClientId   Int?         @unique
   name               String
   company            String?
   email              String
-  notifyOnCompletion Boolean @default(false)
+  type               CustomerType @default(CUSTOMER)
+  notifyOnCompletion Boolean      @default(false)
 
   projects Project[]
   cards    Strippenkaart[]
@@ -220,6 +228,13 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+}
+
+// Generieke sleutel/waarde-instellingen (o.a. de twee standaard uurtarieven).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 // Cursor voor het pollen van HostBill-orders

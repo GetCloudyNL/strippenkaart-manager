@@ -51,6 +51,19 @@ async function main() {
     });
     console.log(`Kaarttype aangemaakt: ${ct.name}`);
   }
+
+  const settings = [
+    { key: "HOURLY_RATE_CUSTOMER", value: "95" },
+    { key: "HOURLY_RATE_NON_CUSTOMER", value: "125" },
+  ];
+  for (const s of settings) {
+    await prisma.setting.upsert({
+      where: { key: s.key },
+      update: {},
+      create: s,
+    });
+  }
+  console.log("Standaard uurtarieven ingesteld.");
 }
 
 main()

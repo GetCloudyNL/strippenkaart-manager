@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { formatMinutes } from "@/lib/rounding";
+import { PageHeader, LinkButton } from "@/components/ui";
 
 const DIRECTION_LABEL: Record<string, string> = {
   UP: "naar boven",
@@ -16,13 +18,13 @@ export default async function CardTypesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Kaarttypes</h1>
-        <p className="text-sm text-muted">
-          Configureerbare strippenkaarten met eigen afrondingsregels. Bewerken
-          volgt in fase 3.
-        </p>
-      </div>
+      <PageHeader
+        title="Kaarttypes"
+        description="Configureerbare strippenkaarten met eigen afrondingsregels."
+        action={
+          <LinkButton href="/admin/card-types/new">Nieuw kaarttype</LinkButton>
+        }
+      />
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <table className="w-full text-sm">
@@ -35,6 +37,7 @@ export default async function CardTypesPage() {
               <th className="px-4 py-3 font-medium">Minimum</th>
               <th className="px-4 py-3 font-medium">Geldigheid</th>
               <th className="px-4 py-3 font-medium">Actief</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -51,11 +54,19 @@ export default async function CardTypesPage() {
                   {ct.validityMonths ? `${ct.validityMonths} mnd` : "onbeperkt"}
                 </td>
                 <td className="px-4 py-3">{ct.active ? "Ja" : "Nee"}</td>
+                <td className="px-4 py-3 text-right">
+                  <Link
+                    href={`/admin/card-types/${ct.id}`}
+                    className="text-primary hover:underline"
+                  >
+                    Bewerken
+                  </Link>
+                </td>
               </tr>
             ))}
             {cardTypes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-muted">
                   Nog geen kaarttypes.
                 </td>
               </tr>

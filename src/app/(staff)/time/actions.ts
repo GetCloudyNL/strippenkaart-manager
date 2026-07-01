@@ -5,6 +5,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
+import {
+  pickActiveCard,
+  deductFromCard,
+  reverseFromCard,
+} from "@/lib/strippenkaart";
+
+class NoCardError extends Error {}
 
 const timeEntrySchema = z.object({
   projectId: z.string().min(1, "Kies een project"),
@@ -16,6 +23,9 @@ const timeEntrySchema = z.object({
 });
 
 export type TimeEntryFormState = { error?: string } | undefined;
+
+const NO_CARD_MESSAGE =
+  "Geen actieve strippenkaart voor deze klant/dit project. Maak eerst een strippenkaart aan.";
 
 function parse(formData: FormData) {
   return timeEntrySchema.safeParse({
@@ -40,24 +50,48 @@ export async function createTimeEntry(
   const { projectId, date, description, hours, minutes, ticketRef } =
     parsed.data;
   const rawMinutes = hours * 60 + minutes;
-  if (rawMinutes <= 0) {
-    return { error: "Duur moet groter zijn dan 0." };
+  if (rawMinutes <= 0) return { error: "Duur moet groter zijn dan 0." };
+
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) return { error: "Project niet gevonden." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      let chargedMinutes = rawMinutes;
+      let strippenkaartId: string | null = null;
+
+      if (project.billingType === "STRIPPENKAART") {
+        const card = await pickActiveCard(tx, project);
+        if (!card) throw new NoCardError();
+        chargedMinutes = await deductFromCard(
+          tx,
+          card,
+          rawMinutes,
+          session.user.id,
+        );
+        strippenkaartId = card.id;
+      }
+
+      await tx.timeEntry.create({
+        data: {
+          projectId,
+          userId: session.user.id,
+          date: new Date(date),
+          description,
+          rawMinutes,
+          chargedMinutes,
+          strippenkaartId,
+          ticketRef: ticketRef || null,
+        },
+      });
+    });
+  } catch (e) {
+    if (e instanceof NoCardError) return { error: NO_CARD_MESSAGE };
+    throw e;
   }
 
-  // Strippenkaart-afschrijving en afronding volgen in fase 3; voorlopig is
-  // het afgeschreven aantal gelijk aan de ruwe tijd.
-  await prisma.timeEntry.create({
-    data: {
-      projectId,
-      userId: session.user.id,
-      date: new Date(date),
-      description,
-      rawMinutes,
-      chargedMinutes: rawMinutes,
-      ticketRef: ticketRef || null,
-    },
-  });
   revalidatePath("/time");
+  revalidatePath("/cards");
   redirect("/time");
 }
 
@@ -66,7 +100,7 @@ export async function updateTimeEntry(
   _prev: TimeEntryFormState,
   formData: FormData,
 ): Promise<TimeEntryFormState> {
-  await requireRole(["ADMIN", "TECHNICIAN"]);
+  const session = await requireRole(["ADMIN", "TECHNICIAN"]);
   const parsed = parse(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Ongeldige invoer" };
@@ -74,28 +108,80 @@ export async function updateTimeEntry(
   const { projectId, date, description, hours, minutes, ticketRef } =
     parsed.data;
   const rawMinutes = hours * 60 + minutes;
-  if (rawMinutes <= 0) {
-    return { error: "Duur moet groter zijn dan 0." };
+  if (rawMinutes <= 0) return { error: "Duur moet groter zijn dan 0." };
+
+  const [existing, project] = await Promise.all([
+    prisma.timeEntry.findUnique({ where: { id } }),
+    prisma.project.findUnique({ where: { id: projectId } }),
+  ]);
+  if (!existing) return { error: "Boeking niet gevonden." };
+  if (!project) return { error: "Project niet gevonden." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Oude afschrijving terugboeken.
+      if (existing.strippenkaartId) {
+        await reverseFromCard(
+          tx,
+          existing.strippenkaartId,
+          existing.chargedMinutes,
+        );
+      }
+
+      let chargedMinutes = rawMinutes;
+      let strippenkaartId: string | null = null;
+
+      if (project.billingType === "STRIPPENKAART") {
+        const card = await pickActiveCard(tx, project);
+        if (!card) throw new NoCardError();
+        chargedMinutes = await deductFromCard(
+          tx,
+          card,
+          rawMinutes,
+          session.user.id,
+        );
+        strippenkaartId = card.id;
+      }
+
+      await tx.timeEntry.update({
+        where: { id },
+        data: {
+          projectId,
+          date: new Date(date),
+          description,
+          rawMinutes,
+          chargedMinutes,
+          strippenkaartId,
+          ticketRef: ticketRef || null,
+        },
+      });
+    });
+  } catch (e) {
+    if (e instanceof NoCardError) return { error: NO_CARD_MESSAGE };
+    throw e;
   }
 
-  await prisma.timeEntry.update({
-    where: { id },
-    data: {
-      projectId,
-      date: new Date(date),
-      description,
-      rawMinutes,
-      chargedMinutes: rawMinutes,
-      ticketRef: ticketRef || null,
-    },
-  });
   revalidatePath("/time");
+  revalidatePath("/cards");
   redirect("/time");
 }
 
 export async function deleteTimeEntry(id: string): Promise<void> {
   await requireRole(["ADMIN", "TECHNICIAN"]);
-  await prisma.timeEntry.delete({ where: { id } });
+  const existing = await prisma.timeEntry.findUnique({ where: { id } });
+  if (existing) {
+    await prisma.$transaction(async (tx) => {
+      if (existing.strippenkaartId) {
+        await reverseFromCard(
+          tx,
+          existing.strippenkaartId,
+          existing.chargedMinutes,
+        );
+      }
+      await tx.timeEntry.delete({ where: { id } });
+    });
+  }
   revalidatePath("/time");
+  revalidatePath("/cards");
   redirect("/time");
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { calculateChargedMinutes } from "@/lib/rounding";
+import { hostbillQueue } from "@/lib/queue";
 
 // Interactieve transactie-client (Prisma). We laten de lifecycle-methodes weg
 // zodat zowel `prisma` als de transactie-client hieraan voldoen.
@@ -119,4 +120,12 @@ async function recordDepletion(
       meta: { remainingMinutes: remaining },
     },
   });
+
+  // Best-effort: zet een upsell-job in de wachtrij. Faalt dit (bijv. Redis
+  // onbereikbaar), dan blijft de audit-log als trigger staan.
+  try {
+    await hostbillQueue.add("upsell", { type: "upsell", cardId });
+  } catch {
+    // stil negeren; de afschrijving mag hier niet op stuklopen
+  }
 }

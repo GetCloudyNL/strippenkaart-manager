@@ -69,10 +69,16 @@ de leidraad om het project op te pakken vanaf elke plek.
   strippenkaarten aanmaken/beheren (snapshot voorwaarden), automatische
   afschrijving met afronding, negatief saldo + upsell-trigger, terugboeken bij
   bewerken/verwijderen.
-- [ ] **Fase 4 – HostBill-koppeling**: `HostBillClient` (API), polling op nieuwe
-  betaalde orders → strippenkaart aanmaken (mapping `hostbillProductId` →
-  CardType), klant-sync (`hostbillClientId`), upsell-order/factuur bij opgebruikt
-  saldo. Worker draait de poll-job periodiek.
+- [x] **Fase 4 – HostBill-koppeling**: `HostBillClient` (`src/lib/hostbill.ts`),
+  sync-logica (`src/lib/hostbill-sync.ts`): polling op nieuwe betaalde orders →
+  strippenkaart aanmaken (mapping `hostbillProductId` → CardType), klant-sync
+  (`hostbillClientId`), upsell-order bij opgebruikt saldo via de hostbill-queue.
+  Worker draait de poll-job periodiek; admin-pagina `/admin/hostbill` toont status
+  en heeft "Nu synchroniseren".
+  - Nog voor go-live: echte API-credentials invullen, `hostbillProductId` per
+    kaarttype zetten, en de HostBill method-namen/velden verifiëren tegen jullie
+    instance (`HOSTBILL_ORDERS_CALL`, `HOSTBILL_UPSELL_CALL`,
+    `HOSTBILL_PAID_STATUSES`), daarna `HOSTBILL_POLL_ENABLED=true`.
 - [ ] **Fase 5 – Mail/PDF**: mail met restant na afronden werk, maandoverzicht
   (cron + PDF-bijlage), lage-saldo- en vervaldatum-alerts. Via `mailQueue`.
 - [ ] **Fase 6 – Klantportaal**: klant ziet eigen saldo/verbruik per project,

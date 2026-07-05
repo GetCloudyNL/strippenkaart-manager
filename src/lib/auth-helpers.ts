@@ -14,6 +14,15 @@ export async function requireStaff() {
   return session;
 }
 
+/** Vereist een ingelogde klant (portal). Geeft de gekoppelde customerId terug. */
+export async function requireCustomer() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  if (session.user.role !== "CUSTOMER") redirect("/dashboard");
+  if (!session.user.customerId) redirect("/login");
+  return { session, customerId: session.user.customerId };
+}
+
 /** Vereist een specifieke rol (of een van meerdere rollen). */
 export async function requireRole(roles: Role | Role[]) {
   const session = await requireStaff();

@@ -92,8 +92,12 @@ de leidraad om het project op te pakken vanaf elke plek.
   en plant maand-/dagjobs in (cron) als `REPORTS_ENABLED=true`. Admin-pagina
   `/admin/reports` toont SMTP-status, recente mails en knoppen om handmatig te
   versturen. Lokaal testen via **Mailpit** (docker-compose, SMTP 1025, web 8025).
-- [ ] **Fase 6 – Klantportaal**: klant ziet eigen saldo/verbruik per project,
-  PDF-download.
+- [x] **Fase 6 – Klantportaal**: portal (`src/app/portal`) voor CUSTOMER-logins met
+  `requireCustomer()` (rol + gekoppelde `customerId`). Home toont resterend saldo,
+  actieve kaarten en verbruik per project (deze maand) plus kaartoverzicht met
+  voortgangsbalk. Kaartdetail (`/portal/cards/[id]`) toont saldo, voorwaarden en
+  boekingen; PDF-download via route-handler `/portal/cards/[id]/pdf`
+  (`generateCardOverviewPdf`). Toegang afgeschermd via `src/proxy.ts` + eigenaarscheck.
 - [ ] **Fase 7 – Extra's**: dashboard-statistieken, audit log-weergave,
   timer/quick-entry, facturatie-export.
 

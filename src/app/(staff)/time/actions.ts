@@ -10,6 +10,7 @@ import {
   deductFromCard,
   reverseFromCard,
 } from "@/lib/strippenkaart";
+import { sendWorkCompletedMail } from "@/lib/notify";
 
 class NoCardError extends Error {}
 
@@ -55,6 +56,8 @@ export async function createTimeEntry(
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return { error: "Project niet gevonden." };
 
+  let createdId: string | null = null;
+  let isStrippenkaart = false;
   try {
     await prisma.$transaction(async (tx) => {
       let chargedMinutes = rawMinutes;
@@ -70,9 +73,10 @@ export async function createTimeEntry(
           session.user.id,
         );
         strippenkaartId = card.id;
+        isStrippenkaart = true;
       }
 
-      await tx.timeEntry.create({
+      const created = await tx.timeEntry.create({
         data: {
           projectId,
           userId: session.user.id,
@@ -84,10 +88,20 @@ export async function createTimeEntry(
           ticketRef: ticketRef || null,
         },
       });
+      createdId = created.id;
     });
   } catch (e) {
     if (e instanceof NoCardError) return { error: NO_CARD_MESSAGE };
     throw e;
+  }
+
+  // Best-effort: mail met restant na afronden werkzaamheden.
+  if (createdId && isStrippenkaart) {
+    try {
+      await sendWorkCompletedMail(createdId);
+    } catch {
+      // mailfout mag het boeken niet blokkeren
+    }
   }
 
   revalidatePath("/time");

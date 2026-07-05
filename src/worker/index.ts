@@ -4,18 +4,23 @@ import {
   QUEUE_NAMES,
   connectionOptions,
   hostbillQueue,
+  reportsQueue,
+  type MailJob,
 } from "../lib/queue";
 import { pollHostbillOrders, createUpsellForCard } from "../lib/hostbill-sync";
+import { processMailJob } from "../lib/mail";
+import { runMonthlyReports, runAlerts } from "../lib/reports";
 
 interface HostbillJob {
   type: "poll" | "upsell";
   cardId?: string;
 }
 
-const mailWorker = new Worker(
+const mailWorker = new Worker<MailJob>(
   QUEUE_NAMES.mail,
   async (job) => {
-    console.log(`[mail] job ${job.id} ontvangen (fase 5)`);
+    await processMailJob(job.data);
+    console.log(`[mail] verstuurd naar ${job.data.to}`);
   },
   { connection: connectionOptions },
 );
@@ -37,7 +42,15 @@ const hostbillWorker = new Worker<HostbillJob>(
 const reportsWorker = new Worker(
   QUEUE_NAMES.reports,
   async (job) => {
-    console.log(`[reports] job ${job.id} ontvangen (fase 5)`);
+    if (job.name === "monthly") {
+      const sent = await runMonthlyReports();
+      console.log(`[reports] maandoverzichten verstuurd: ${sent}`);
+    } else if (job.name === "alerts") {
+      const res = await runAlerts();
+      console.log(
+        `[reports] alerts: laag saldo ${res.lowBalance}, vervaldatum ${res.expiry}`,
+      );
+    }
   },
   { connection: connectionOptions },
 );
@@ -66,8 +79,29 @@ async function scheduleHostbillPoll() {
   console.log(`HostBill-polling elke ${minutes} min ingepland.`);
 }
 
+async function scheduleReports() {
+  if (process.env.REPORTS_ENABLED !== "true") {
+    console.log("Geplande rapporten staan uit (REPORTS_ENABLED != true).");
+    return;
+  }
+  await reportsQueue.add(
+    "monthly",
+    {},
+    { repeat: { pattern: "0 8 1 * *" }, removeOnComplete: true, removeOnFail: 50 },
+  );
+  await reportsQueue.add(
+    "alerts",
+    {},
+    { repeat: { pattern: "0 8 * * *" }, removeOnComplete: true, removeOnFail: 50 },
+  );
+  console.log("Maandoverzicht (1e v/d maand) en dagelijkse alerts ingepland.");
+}
+
 void scheduleHostbillPoll().catch((e) =>
   console.error("Plannen van HostBill-poll mislukt:", e),
+);
+void scheduleReports().catch((e) =>
+  console.error("Plannen van rapporten mislukt:", e),
 );
 
 console.log("Worker gestart. Wacht op jobs...");

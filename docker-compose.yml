@@ -29,6 +29,14 @@ services:
       timeout: 5s
       retries: 10
 
+  # Lokale mailserver voor ontwikkeling: SMTP op 1025, webinterface op 8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   # Productie: de Next.js-app. Voor lokale ontwikkeling draai je `npm run dev`
   # en alleen `docker compose up db redis`.
   app:

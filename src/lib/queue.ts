@@ -30,8 +30,17 @@ export const QUEUE_NAMES = {
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
+export interface MailAttachment {
+  filename: string;
+  contentBase64: string;
+}
+
 export interface MailJob {
   emailLogId: string;
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: MailAttachment[];
 }
 
 export const mailQueue = new Queue<MailJob>(QUEUE_NAMES.mail, {

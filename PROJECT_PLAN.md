@@ -57,6 +57,9 @@ de leidraad om het project op te pakken vanaf elke plek.
 - `src/lib/settings.ts` – twee instelbare uurtarieven (klant/niet-klant).
 - `src/lib/strippenkaart.ts` – kaartselectie (FIFO), afschrijven met afronding,
   terugboeken, upsell-trigger bij opgebruikt saldo.
+- `src/lib/mail.ts` / `email-templates.ts` / `pdf.ts` / `reports.ts` / `notify.ts` –
+  mail via wachtrij (EmailLog + worker), HTML-templates, PDF-maandoverzicht,
+  rapport-/alertlogica en de "werk afgerond"-mail.
 
 ## Fasering & status
 
@@ -79,8 +82,16 @@ de leidraad om het project op te pakken vanaf elke plek.
     kaarttype zetten, en de HostBill method-namen/velden verifiëren tegen jullie
     instance (`HOSTBILL_ORDERS_CALL`, `HOSTBILL_UPSELL_CALL`,
     `HOSTBILL_PAID_STATUSES`), daarna `HOSTBILL_POLL_ENABLED=true`.
-- [ ] **Fase 5 – Mail/PDF**: mail met restant na afronden werk, maandoverzicht
-  (cron + PDF-bijlage), lage-saldo- en vervaldatum-alerts. Via `mailQueue`.
+- [x] **Fase 5 – Mail/PDF**: mailinfra (`src/lib/mail.ts`: nodemailer-transport,
+  `queueEmail` → EmailLog + `mailQueue`, `processMailJob`), HTML-templates
+  (`src/lib/email-templates.ts`) en PDF-maandoverzicht via pdfkit (`src/lib/pdf.ts`).
+  Rapportfuncties (`src/lib/reports.ts`): maandoverzichten (vorige maand, per klant,
+  met PDF-bijlage) en alerts (laag saldo + naderende vervaldatum, met dedup via
+  EmailLog). "Werk afgerond"-mail met restant bij strippenkaart-boeking
+  (`src/lib/notify.ts`, aangeroepen vanuit `time/actions.ts`). Worker verstuurt mail
+  en plant maand-/dagjobs in (cron) als `REPORTS_ENABLED=true`. Admin-pagina
+  `/admin/reports` toont SMTP-status, recente mails en knoppen om handmatig te
+  versturen. Lokaal testen via **Mailpit** (docker-compose, SMTP 1025, web 8025).
 - [ ] **Fase 6 – Klantportaal**: klant ziet eigen saldo/verbruik per project,
   PDF-download.
 - [ ] **Fase 7 – Extra's**: dashboard-statistieken, audit log-weergave,
@@ -99,7 +110,7 @@ de leidraad om het project op te pakken vanaf elke plek.
 ## Lokaal draaien
 
 ```bash
-docker compose up -d db redis
+docker compose up -d db redis mailpit   # mailpit = lokale mailserver (web: http://localhost:8025)
 cp .env.example .env            # vul AUTH_SECRET (openssl rand -base64 32)
 npm install
 npm run db:migrate

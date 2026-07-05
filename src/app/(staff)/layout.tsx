@@ -10,6 +10,7 @@ const NAV = [
   { href: "/cards", label: "Strippenkaarten" },
   { href: "/admin/card-types", label: "Kaarttypes", adminOnly: true },
   { href: "/admin/hostbill", label: "HostBill", adminOnly: true },
+  { href: "/admin/reports", label: "Rapporten", adminOnly: true },
   { href: "/admin/settings", label: "Instellingen", adminOnly: true },
 ];
 

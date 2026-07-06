@@ -98,8 +98,13 @@ de leidraad om het project op te pakken vanaf elke plek.
   voortgangsbalk. Kaartdetail (`/portal/cards/[id]`) toont saldo, voorwaarden en
   boekingen; PDF-download via route-handler `/portal/cards/[id]/pdf`
   (`generateCardOverviewPdf`). Toegang afgeschermd via `src/proxy.ts` + eigenaarscheck.
-- [ ] **Fase 7 – Extra's**: dashboard-statistieken, audit log-weergave,
-  timer/quick-entry, facturatie-export.
+- [x] **Fase 7 – Extra's**: uitgebreid dashboard (uren/omzet per maand,
+  aandachtslijsten laag saldo & bijna verlopen, top-projecten, recente boekingen)
+  met **timer/quick-entry** (`dashboard/quick-entry.tsx`). Audit-logging via
+  `src/lib/audit.ts` (kaart aanmaken/annuleren, boeking aanmaken/wijzigen/
+  verwijderen, facturatie) met weergave op `/admin/audit`. Facturatie-export
+  (`/admin/export`): filters, CSV-download (`/admin/export/csv`) en "markeer als
+  gefactureerd" (`billed`-vlag) voor uurtarief-boekingen.
 
 ## Belangrijke keuzes
 

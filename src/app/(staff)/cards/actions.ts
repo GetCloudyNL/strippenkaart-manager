@@ -6,6 +6,7 @@ import { addMonths } from "date-fns";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
+import { logAudit } from "@/lib/audit";
 
 const cardSchema = z.object({
   customerId: z.string().min(1, "Kies een klant"),
@@ -20,7 +21,7 @@ export async function createCard(
   _prev: CardFormState,
   formData: FormData,
 ): Promise<CardFormState> {
-  await requireRole(["ADMIN", "TECHNICIAN"]);
+  const session = await requireRole(["ADMIN", "TECHNICIAN"]);
   const parsed = cardSchema.safeParse({
     customerId: formData.get("customerId"),
     cardTypeId: formData.get("cardTypeId"),
@@ -43,7 +44,7 @@ export async function createCard(
     ? addMonths(purchasedAt, cardType.validityMonths)
     : null;
 
-  await prisma.strippenkaart.create({
+  const card = await prisma.strippenkaart.create({
     data: {
       customerId: parsed.data.customerId,
       projectId: parsed.data.projectId || null,
@@ -58,15 +59,29 @@ export async function createCard(
     },
   });
 
+  await logAudit({
+    userId: session.user.id,
+    action: "CARD_CREATED",
+    entity: "Strippenkaart",
+    entityId: card.id,
+    meta: { cardType: cardType.name, totalMinutes: cardType.totalMinutes },
+  });
+
   revalidatePath("/cards");
   redirect("/cards");
 }
 
 export async function cancelCard(id: string): Promise<void> {
-  await requireRole(["ADMIN", "TECHNICIAN"]);
+  const session = await requireRole(["ADMIN", "TECHNICIAN"]);
   await prisma.strippenkaart.update({
     where: { id },
     data: { status: "CANCELLED" },
+  });
+  await logAudit({
+    userId: session.user.id,
+    action: "CARD_CANCELLED",
+    entity: "Strippenkaart",
+    entityId: id,
   });
   revalidatePath("/cards");
   revalidatePath(`/cards/${id}`);

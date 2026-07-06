@@ -11,6 +11,7 @@ import {
   reverseFromCard,
 } from "@/lib/strippenkaart";
 import { sendWorkCompletedMail } from "@/lib/notify";
+import { logAudit } from "@/lib/audit";
 
 class NoCardError extends Error {}
 
@@ -95,6 +96,14 @@ export async function createTimeEntry(
     throw e;
   }
 
+  await logAudit({
+    userId: session.user.id,
+    action: "TIME_CREATED",
+    entity: "TimeEntry",
+    entityId: createdId,
+    meta: { projectId, rawMinutes, description },
+  });
+
   // Best-effort: mail met restant na afronden werkzaamheden.
   if (createdId && isStrippenkaart) {
     try {
@@ -175,13 +184,21 @@ export async function updateTimeEntry(
     throw e;
   }
 
+  await logAudit({
+    userId: session.user.id,
+    action: "TIME_UPDATED",
+    entity: "TimeEntry",
+    entityId: id,
+    meta: { projectId, rawMinutes },
+  });
+
   revalidatePath("/time");
   revalidatePath("/cards");
   redirect("/time");
 }
 
 export async function deleteTimeEntry(id: string): Promise<void> {
-  await requireRole(["ADMIN", "TECHNICIAN"]);
+  const session = await requireRole(["ADMIN", "TECHNICIAN"]);
   const existing = await prisma.timeEntry.findUnique({ where: { id } });
   if (existing) {
     await prisma.$transaction(async (tx) => {
@@ -193,6 +210,13 @@ export async function deleteTimeEntry(id: string): Promise<void> {
         );
       }
       await tx.timeEntry.delete({ where: { id } });
+    });
+    await logAudit({
+      userId: session.user.id,
+      action: "TIME_DELETED",
+      entity: "TimeEntry",
+      entityId: id,
+      meta: { description: existing.description, rawMinutes: existing.rawMinutes },
     });
   }
   revalidatePath("/time");

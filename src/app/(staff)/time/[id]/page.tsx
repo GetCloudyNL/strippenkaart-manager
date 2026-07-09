@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { PageHeader } from "@/components/ui";
@@ -20,6 +20,11 @@ export default async function EditTimeEntryPage({
     }),
   ]);
   if (!entry) notFound();
+  // Boekingen die direct op een strippenkaart staan (zonder project) bewerk je
+  // op de kaartpagina.
+  if (!entry.projectId) {
+    redirect(entry.strippenkaartId ? `/cards/${entry.strippenkaartId}` : "/time");
+  }
 
   const action = updateTimeEntry.bind(null, entry.id);
 

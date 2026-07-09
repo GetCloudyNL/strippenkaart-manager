@@ -53,7 +53,10 @@ export default async function DashboardPage() {
     }),
     prisma.timeEntry.findMany({
       where: { date: { gte: monthStart, lte: monthEnd } },
-      include: { project: { include: { customer: true } } },
+      include: {
+        project: { include: { customer: true } },
+        strippenkaart: { include: { customer: true, cardType: true } },
+      },
     }),
     prisma.strippenkaart.findMany({
       where: { status: "ACTIVE", remainingMinutes: { lt: lowThreshold } },
@@ -74,7 +77,11 @@ export default async function DashboardPage() {
     prisma.timeEntry.findMany({
       orderBy: { date: "desc" },
       take: 6,
-      include: { project: { include: { customer: true } }, user: true },
+      include: {
+        project: { include: { customer: true } },
+        strippenkaart: { include: { customer: true, cardType: true } },
+        user: true,
+      },
     }),
     prisma.project.findMany({
       where: { status: "ACTIVE" },
@@ -87,7 +94,7 @@ export default async function DashboardPage() {
   const outstanding = balance._sum.remainingMinutes ?? 0;
   const monthMinutes = monthEntries.reduce((s, e) => s + e.chargedMinutes, 0);
   const monthRevenue = monthEntries.reduce((s, e) => {
-    if (e.project.billingType !== "HOURLY") return s;
+    if (e.project?.billingType !== "HOURLY") return s;
     const rate = resolveHourlyRate(
       e.project.hourlyRate ? Number(e.project.hourlyRate) : null,
       e.project.customer.type,
@@ -98,12 +105,15 @@ export default async function DashboardPage() {
 
   const perProject = new Map<string, { name: string; minutes: number }>();
   for (const e of monthEntries) {
-    const cur = perProject.get(e.projectId) ?? {
-      name: `${e.project.name} (${e.project.customer.name})`,
-      minutes: 0,
-    };
+    const key = e.projectId ?? `card:${e.strippenkaartId ?? "onbekend"}`;
+    const name = e.project
+      ? `${e.project.name} (${e.project.customer.name})`
+      : e.strippenkaart
+        ? `Strippenkaart: ${e.strippenkaart.cardType.name} (${e.strippenkaart.customer.name})`
+        : "Overig";
+    const cur = perProject.get(key) ?? { name, minutes: 0 };
     cur.minutes += e.chargedMinutes;
-    perProject.set(e.projectId, cur);
+    perProject.set(key, cur);
   }
   const topProjects = [...perProject.values()]
     .sort((a, b) => b.minutes - a.minutes)
@@ -260,8 +270,15 @@ export default async function DashboardPage() {
                     <div className="min-w-0">
                       <p className="truncate">{e.description}</p>
                       <p className="text-xs text-muted">
-                        {e.project.name} · {e.project.customer.name} ·{" "}
-                        {e.user.name}
+                        {e.project?.name ??
+                          (e.strippenkaart
+                            ? `Strippenkaart: ${e.strippenkaart.cardType.name}`
+                            : "—")}{" "}
+                        ·{" "}
+                        {e.project?.customer.name ??
+                          e.strippenkaart?.customer.name ??
+                          "—"}{" "}
+                        · {e.user.name}
                       </p>
                     </div>
                     <div className="whitespace-nowrap text-right">

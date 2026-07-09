@@ -39,13 +39,14 @@ export default async function ExportPage({
     getHourlyRates(),
   ]);
 
-  const rows = entries.map((e) => {
+  const rows = entries.flatMap((e) => {
+    if (!e.project) return [];
     const rate = resolveHourlyRate(
       e.project.hourlyRate ? Number(e.project.hourlyRate) : null,
       e.project.customer.type,
       rates,
     );
-    return { e, amount: amountForMinutes(e.chargedMinutes, rate) };
+    return [{ e, project: e.project, amount: amountForMinutes(e.chargedMinutes, rate) }];
   });
 
   const totalMinutes = rows.reduce((s, r) => s + r.e.chargedMinutes, 0);
@@ -161,15 +162,15 @@ export default async function ExportPage({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ e, amount }) => (
+            {rows.map(({ e, project, amount }) => (
               <tr key={e.id} className="border-t border-border align-top">
                 <td className="px-4 py-3 whitespace-nowrap">
                   {dateFmt.format(e.date)}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="font-medium">{e.project.name}</div>
+                  <div className="font-medium">{project.name}</div>
                   <div className="text-xs text-muted">
-                    {e.project.customer.name}
+                    {project.customer.name}
                   </div>
                 </td>
                 <td className="px-4 py-3">{e.description}</td>

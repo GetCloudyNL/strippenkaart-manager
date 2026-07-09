@@ -7,6 +7,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { logAudit } from "@/lib/audit";
+import { deductFromCard } from "@/lib/strippenkaart";
+import { resolveDuration } from "@/lib/duration";
+import { sendWorkCompletedMail } from "@/lib/notify";
 
 const cardSchema = z.object({
   customerId: z.string().min(1, "Kies een klant"),
@@ -69,6 +72,95 @@ export async function createCard(
 
   revalidatePath("/cards");
   redirect("/cards");
+}
+
+const cardTimeSchema = z.object({
+  date: z.string().min(1, "Datum is verplicht"),
+  description: z.string().trim().min(1, "Omschrijving is verplicht"),
+  hours: z.coerce.number().int().min(0).max(1000),
+  minutes: z.coerce.number().int().min(0).max(59),
+  start: z.string().optional(),
+  end: z.string().optional(),
+  ticketRef: z.string().trim().optional(),
+});
+
+export type CardTimeState = { error?: string } | undefined;
+
+export async function logTimeOnCard(
+  cardId: string,
+  _prev: CardTimeState,
+  formData: FormData,
+): Promise<CardTimeState> {
+  const session = await requireRole(["ADMIN", "TECHNICIAN"]);
+  const parsed = cardTimeSchema.safeParse({
+    date: formData.get("date"),
+    description: formData.get("description"),
+    hours: formData.get("hours") || 0,
+    minutes: formData.get("minutes") || 0,
+    start: formData.get("start") || undefined,
+    end: formData.get("end") || undefined,
+    ticketRef: formData.get("ticketRef") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Ongeldige invoer" };
+  }
+
+  const { date, description, hours, minutes, start, end, ticketRef } =
+    parsed.data;
+  const duration = resolveDuration({ hours, minutes, start, end }, date);
+  if ("error" in duration) return { error: duration.error };
+
+  const card = await prisma.strippenkaart.findUnique({ where: { id: cardId } });
+  if (!card) return { error: "Strippenkaart niet gevonden." };
+  if (card.status === "CANCELLED" || card.status === "EXPIRED") {
+    return { error: "Deze strippenkaart is niet meer actief." };
+  }
+
+  let createdId: string | null = null;
+  await prisma.$transaction(async (tx) => {
+    const charged = await deductFromCard(
+      tx,
+      card,
+      duration.rawMinutes,
+      session.user.id,
+    );
+    const created = await tx.timeEntry.create({
+      data: {
+        projectId: card.projectId,
+        strippenkaartId: card.id,
+        userId: session.user.id,
+        date: new Date(date),
+        startedAt: duration.startedAt,
+        endedAt: duration.endedAt,
+        description,
+        rawMinutes: duration.rawMinutes,
+        chargedMinutes: charged,
+        ticketRef: ticketRef || null,
+      },
+    });
+    createdId = created.id;
+  });
+
+  await logAudit({
+    userId: session.user.id,
+    action: "TIME_CREATED",
+    entity: "TimeEntry",
+    entityId: createdId,
+    meta: { strippenkaartId: card.id, rawMinutes: duration.rawMinutes },
+  });
+
+  if (createdId) {
+    try {
+      await sendWorkCompletedMail(createdId);
+    } catch {
+      // mailfout mag het boeken niet blokkeren
+    }
+  }
+
+  revalidatePath(`/cards/${cardId}`);
+  revalidatePath("/cards");
+  revalidatePath("/time");
+  redirect(`/cards/${cardId}`);
 }
 
 export async function cancelCard(id: string): Promise<void> {

@@ -26,7 +26,7 @@ function getTransport(): Transporter {
 }
 
 function mailFrom(): string {
-  return process.env.MAIL_FROM || "Strippenkaart Manager <noreply@example.com>";
+  return process.env.MAIL_FROM || "LemonCap <noreply@lemoncap.nl>";
 }
 
 export interface QueueEmailInput {

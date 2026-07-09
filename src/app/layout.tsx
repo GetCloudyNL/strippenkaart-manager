@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Strippenkaart Manager",
+  title: "LemonCap",
   description: "Beheer strippenkaarten, projecten en tijdregistratie",
+  icons: {
+    icon: "/logo-vector-light-bg-green.svg",
+  },
 };
 
 export default function RootLayout({

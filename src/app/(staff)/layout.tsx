@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { requireStaff } from "@/lib/auth-helpers";
 import { signOut } from "@/auth";
 
@@ -25,10 +26,16 @@ export default async function StaffLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 flex-col border-r border-border bg-card">
-        <div className="border-b border-border p-4">
-          <p className="font-semibold">Strippenkaart Manager</p>
-          <p className="text-xs text-muted">{session.user.name}</p>
+      <aside className="flex w-60 flex-col bg-brand text-brand-cream">
+        <div className="border-b border-white/10 p-4">
+          <Image
+            src="/logo-vector-dark-bg.svg"
+            alt="LemonCap"
+            width={132}
+            height={35}
+            priority
+          />
+          <p className="mt-2 text-xs text-brand-cream/60">{session.user.name}</p>
         </div>
         <nav className="flex-1 space-y-1 p-3">
           {NAV.filter(
@@ -37,7 +44,7 @@ export default async function StaffLayout({
             <Link
               key={item.href}
               href={item.href}
-              className="block rounded-md px-3 py-2 text-sm hover:bg-background"
+              className="block rounded-md px-3 py-2 text-sm text-brand-cream/80 transition-colors hover:bg-white/10 hover:text-brand-cream"
             >
               {item.label}
             </Link>
@@ -48,11 +55,11 @@ export default async function StaffLayout({
             "use server";
             await signOut({ redirectTo: "/login" });
           }}
-          className="border-t border-border p-3"
+          className="border-t border-white/10 p-3"
         >
           <button
             type="submit"
-            className="w-full rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background"
+            className="w-full rounded-md px-3 py-2 text-left text-sm text-brand-cream/60 transition-colors hover:bg-white/10 hover:text-brand-cream"
           >
             Uitloggen
           </button>

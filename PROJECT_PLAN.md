@@ -67,7 +67,11 @@ de leidraad om het project op te pakken vanaf elke plek.
   seed (admin + 4/8/12u kaarttypes).
 - [x] **Fase 2 – Tijdregistratie**: klanten-CRUD, projecten-CRUD, boekingen met
   overzicht/filters/totalen, twee instelbare uurtarieven (klant/niet-klant),
-  admin-instellingen.
+  admin-instellingen. Duur invoeren via timer, begin-/eindtijd óf uren/minuten
+  (`src/components/duration-fields.tsx` + `src/lib/duration.ts`); `TimeEntry`
+  slaat optioneel `startedAt`/`endedAt` op. Direct op een strippenkaart tijd
+  afschrijven (zonder project) via de kaartdetailpagina (`logTimeOnCard`);
+  `projectId` op een boeking is daardoor optioneel.
 - [x] **Fase 3 – Strippenkaart-laag**: kaarttypes-CRUD met afrondingsregels,
   strippenkaarten aanmaken/beheren (snapshot voorwaarden), automatische
   afschrijving met afronding, negatief saldo + upsell-trigger, terugboeken bij

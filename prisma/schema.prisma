@@ -174,14 +174,16 @@ model Strippenkaart {
 
 model TimeEntry {
   id              String         @id @default(cuid())
-  projectId       String
-  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
   strippenkaartId String?
   strippenkaart   Strippenkaart? @relation(fields: [strippenkaartId], references: [id], onDelete: SetNull)
   userId          String
   user            User           @relation(fields: [userId], references: [id])
 
   date        DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
   description String
   rawMinutes  Int
   // Voor strippenkaart-projecten: afgeschreven minuten na afronding.

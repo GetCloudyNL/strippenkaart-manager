@@ -47,16 +47,33 @@ export default async function TimePage({
   const entries = await prisma.timeEntry.findMany({
     where: {
       projectId: sp.projectId || undefined,
-      project: sp.customerId ? { customerId: sp.customerId } : undefined,
       date: dateFilter,
+      ...(sp.customerId
+        ? {
+            OR: [
+              { project: { customerId: sp.customerId } },
+              { strippenkaart: { customerId: sp.customerId } },
+            ],
+          }
+        : {}),
     },
-    include: { project: { include: { customer: true } }, user: true },
+    include: {
+      project: { include: { customer: true } },
+      strippenkaart: { include: { customer: true, cardType: true } },
+      user: true,
+    },
     orderBy: { date: "desc" },
   });
 
   const rows = entries.map((e) => {
+    const customer = e.project?.customer ?? e.strippenkaart?.customer ?? null;
+    const label =
+      e.project?.name ??
+      (e.strippenkaart
+        ? `Strippenkaart: ${e.strippenkaart.cardType.name}`
+        : "—");
     let amount: number | null = null;
-    if (e.project.billingType === "HOURLY") {
+    if (e.project?.billingType === "HOURLY") {
       const rate = resolveHourlyRate(
         e.project.hourlyRate ? Number(e.project.hourlyRate) : null,
         e.project.customer.type,
@@ -64,7 +81,7 @@ export default async function TimePage({
       );
       amount = amountForMinutes(e.chargedMinutes, rate);
     }
-    return { e, amount };
+    return { e, amount, label, customerName: customer?.name ?? "—" };
   });
 
   const totalMinutes = rows.reduce((sum, r) => sum + r.e.chargedMinutes, 0);
@@ -151,12 +168,12 @@ export default async function TimePage({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ e, amount }) => (
+            {rows.map(({ e, amount, label, customerName }) => (
               <tr key={e.id} className="border-t border-border align-top">
                 <td className="px-4 py-3 whitespace-nowrap">{dateFmt.format(e.date)}</td>
                 <td className="px-4 py-3">
-                  <div className="font-medium">{e.project.name}</div>
-                  <div className="text-xs text-muted">{e.project.customer.name}</div>
+                  <div className="font-medium">{label}</div>
+                  <div className="text-xs text-muted">{customerName}</div>
                 </td>
                 <td className="px-4 py-3">
                   {e.description}
@@ -174,10 +191,14 @@ export default async function TimePage({
                 <td className="px-4 py-3 whitespace-nowrap text-right">
                   <div className="flex justify-end gap-3">
                     <Link
-                      href={`/time/${e.id}`}
+                      href={
+                        e.projectId
+                          ? `/time/${e.id}`
+                          : `/cards/${e.strippenkaartId}`
+                      }
                       className="text-primary hover:underline"
                     >
-                      Bewerken
+                      {e.projectId ? "Bewerken" : "Naar kaart"}
                     </Link>
                     <DeleteEntryButton id={e.id} />
                   </div>

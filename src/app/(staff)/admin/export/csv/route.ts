@@ -54,6 +54,7 @@ export async function GET(req: Request) {
 
   const lines = [header.map(csvField).join(";")];
   for (const e of entries) {
+    if (!e.project) continue;
     const rate = resolveHourlyRate(
       e.project.hourlyRate ? Number(e.project.hourlyRate) : null,
       e.project.customer.type,

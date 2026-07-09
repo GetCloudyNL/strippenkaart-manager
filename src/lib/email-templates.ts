@@ -8,14 +8,14 @@ export interface RenderedEmail {
 function layout(title: string, body: string): string {
   return `<!doctype html>
 <html lang="nl">
-<body style="margin:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+<body style="margin:0;background:#f7f6f1;font-family:Arial,Helvetica,sans-serif;color:#021f18;">
   <div style="max-width:600px;margin:0 auto;padding:24px;">
-    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;">
-      <h1 style="font-size:18px;margin:0 0 16px;">${title}</h1>
+    <div style="background:#ffffff;border:1px solid #e6e2d6;border-radius:12px;border-top:4px solid #fbc202;padding:24px;">
+      <h1 style="font-size:18px;margin:0 0 16px;color:#021f18;">${title}</h1>
       ${body}
     </div>
     <p style="color:#64748b;font-size:12px;margin:16px 4px;">
-      Deze e-mail is automatisch verstuurd door Strippenkaart Manager.
+      Deze e-mail is automatisch verstuurd door LemonCap.
     </p>
   </div>
 </body>

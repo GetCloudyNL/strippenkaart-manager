@@ -12,6 +12,7 @@ import {
 } from "@/lib/strippenkaart";
 import { sendWorkCompletedMail } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
+import { resolveDuration } from "@/lib/duration";
 
 class NoCardError extends Error {}
 
@@ -21,6 +22,8 @@ const timeEntrySchema = z.object({
   description: z.string().trim().min(1, "Omschrijving is verplicht"),
   hours: z.coerce.number().int().min(0).max(1000),
   minutes: z.coerce.number().int().min(0).max(59),
+  start: z.string().optional(),
+  end: z.string().optional(),
   ticketRef: z.string().trim().optional(),
 });
 
@@ -36,6 +39,8 @@ function parse(formData: FormData) {
     description: formData.get("description"),
     hours: formData.get("hours") || 0,
     minutes: formData.get("minutes") || 0,
+    start: formData.get("start") || undefined,
+    end: formData.get("end") || undefined,
     ticketRef: formData.get("ticketRef") || undefined,
   });
 }
@@ -49,10 +54,11 @@ export async function createTimeEntry(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Ongeldige invoer" };
   }
-  const { projectId, date, description, hours, minutes, ticketRef } =
+  const { projectId, date, description, hours, minutes, start, end, ticketRef } =
     parsed.data;
-  const rawMinutes = hours * 60 + minutes;
-  if (rawMinutes <= 0) return { error: "Duur moet groter zijn dan 0." };
+  const duration = resolveDuration({ hours, minutes, start, end }, date);
+  if ("error" in duration) return { error: duration.error };
+  const rawMinutes = duration.rawMinutes;
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return { error: "Project niet gevonden." };
@@ -82,6 +88,8 @@ export async function createTimeEntry(
           projectId,
           userId: session.user.id,
           date: new Date(date),
+          startedAt: duration.startedAt,
+          endedAt: duration.endedAt,
           description,
           rawMinutes,
           chargedMinutes,
@@ -128,10 +136,11 @@ export async function updateTimeEntry(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Ongeldige invoer" };
   }
-  const { projectId, date, description, hours, minutes, ticketRef } =
+  const { projectId, date, description, hours, minutes, start, end, ticketRef } =
     parsed.data;
-  const rawMinutes = hours * 60 + minutes;
-  if (rawMinutes <= 0) return { error: "Duur moet groter zijn dan 0." };
+  const duration = resolveDuration({ hours, minutes, start, end }, date);
+  if ("error" in duration) return { error: duration.error };
+  const rawMinutes = duration.rawMinutes;
 
   const [existing, project] = await Promise.all([
     prisma.timeEntry.findUnique({ where: { id } }),
@@ -171,6 +180,8 @@ export async function updateTimeEntry(
         data: {
           projectId,
           date: new Date(date),
+          startedAt: duration.startedAt,
+          endedAt: duration.endedAt,
           description,
           rawMinutes,
           chargedMinutes,

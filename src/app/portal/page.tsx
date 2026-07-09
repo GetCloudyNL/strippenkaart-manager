@@ -36,9 +36,9 @@ export default async function PortalHome() {
     prisma.timeEntry.findMany({
       where: {
         date: { gte: startOfMonth(now), lte: endOfMonth(now) },
-        project: { customerId },
+        OR: [{ project: { customerId } }, { strippenkaart: { customerId } }],
       },
-      include: { project: true },
+      include: { project: true, strippenkaart: { include: { cardType: true } } },
     }),
   ]);
 
@@ -51,12 +51,15 @@ export default async function PortalHome() {
   // Verbruik per project (deze maand)
   const perProject = new Map<string, { name: string; minutes: number }>();
   for (const e of monthEntries) {
-    const cur = perProject.get(e.projectId) ?? {
-      name: e.project.name,
-      minutes: 0,
-    };
+    const key = e.projectId ?? `card:${e.strippenkaartId ?? "onbekend"}`;
+    const name =
+      e.project?.name ??
+      (e.strippenkaart
+        ? `Strippenkaart: ${e.strippenkaart.cardType.name}`
+        : "Overig");
+    const cur = perProject.get(key) ?? { name, minutes: 0 };
     cur.minutes += e.chargedMinutes;
-    perProject.set(e.projectId, cur);
+    perProject.set(key, cur);
   }
   const projectUsage = [...perProject.values()].sort(
     (a, b) => b.minutes - a.minutes,

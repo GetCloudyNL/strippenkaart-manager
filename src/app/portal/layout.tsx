@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 
@@ -12,9 +13,17 @@ export default async function PortalLayout({
   return (
     <div className="min-h-screen">
       <header className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
-        <div>
-          <p className="font-semibold">Mijn strippenkaarten</p>
-          <p className="text-xs text-muted">{session.user.name}</p>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo-vector-light-bg-green.svg"
+            alt="LemonCap"
+            width={124}
+            height={33}
+            priority
+          />
+          <span className="hidden text-sm text-muted sm:inline">
+            {session.user.name}
+          </span>
         </div>
         <form
           action={async () => {

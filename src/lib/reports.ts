@@ -35,14 +35,18 @@ export async function runMonthlyReports(reference = new Date()): Promise<number>
 
   const entries = await prisma.timeEntry.findMany({
     where: { date: { gte: monthStart, lte: monthEnd } },
-    include: { project: { include: { customer: true } } },
+    include: {
+      project: { include: { customer: true } },
+      strippenkaart: { include: { customer: true, cardType: true } },
+    },
     orderBy: { date: "asc" },
   });
 
-  // Groepeer per klant.
+  // Groepeer per klant (via project of strippenkaart).
   const byCustomer = new Map<string, typeof entries>();
   for (const e of entries) {
-    const id = e.project.customerId;
+    const id = e.project?.customerId ?? e.strippenkaart?.customerId;
+    if (!id) continue;
     const list = byCustomer.get(id) ?? [];
     list.push(e);
     byCustomer.set(id, list);
@@ -50,8 +54,9 @@ export async function runMonthlyReports(reference = new Date()): Promise<number>
 
   let sent = 0;
   for (const [customerId, custEntries] of byCustomer) {
-    const customer = custEntries[0].project.customer;
-    if (!customer.email) continue;
+    const customer =
+      custEntries[0].project?.customer ?? custEntries[0].strippenkaart?.customer;
+    if (!customer?.email) continue;
 
     const cards = await prisma.strippenkaart.findMany({
       where: { customerId, status: { in: ["ACTIVE", "DEPLETED"] } },
@@ -60,7 +65,11 @@ export async function runMonthlyReports(reference = new Date()): Promise<number>
 
     const rows = custEntries.map((e) => ({
       dateLabel: dateFmt.format(e.date),
-      projectName: e.project.name,
+      projectName:
+        e.project?.name ??
+        (e.strippenkaart
+          ? `Strippenkaart: ${e.strippenkaart.cardType.name}`
+          : "Overig"),
       description: e.description,
       minutes: e.chargedMinutes,
     }));

@@ -7,6 +7,7 @@ import { StatCard } from "@/components/stat-card";
 import { formatMinutes } from "@/lib/rounding";
 import { STATUS_LABEL } from "../page";
 import { CancelCardButton } from "../cancel-button";
+import { LogTimeForm } from "./log-time-form";
 
 const DIRECTION_LABEL: Record<string, string> = {
   UP: "naar boven",
@@ -92,6 +93,13 @@ export default async function CardDetailPage({
           <p className="mt-4 text-sm text-muted">{card.cardType.termsText}</p>
         ) : null}
       </Card>
+
+      {card.status === "ACTIVE" || card.status === "DEPLETED" ? (
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold">Tijd afschrijven</h2>
+          <LogTimeForm cardId={card.id} />
+        </Card>
+      ) : null}
 
       <div>
         <h2 className="mb-3 text-sm font-semibold">Boekingen op deze kaart</h2>
